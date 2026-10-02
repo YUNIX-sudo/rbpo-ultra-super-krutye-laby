@@ -1,1 +1,3 @@
-spring.application.name=1BKS24085
+spring:
+  application:
+    name: 1BKS24085
