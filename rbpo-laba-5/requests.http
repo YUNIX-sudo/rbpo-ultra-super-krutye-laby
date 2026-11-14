@@ -1,0 +1,194 @@
+@SERVER_PORT = 8080
+@baseUrl = http://localhost:8080
+
+###
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "dodik1@yunix.software",
+  "password": "password123",
+  "deviceId": "device-client-1"
+}
+
+> {%
+    client.test("Status is 200", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+    });
+    client.global.set("access_token_1", response.body.accessToken);
+    client.global.set("refresh_token_1", response.body.refreshToken);
+%}
+
+###
+GET {{baseUrl}}/api/users
+Authorization: Bearer {{access_token_1}}
+Accept: application/json
+
+> {%
+    client.test("Status is 200", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+    });
+%}
+
+###
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token_1}}"
+}
+
+> {%
+    client.test("Status is 200", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+    });
+    client.test("Tokens are rotated", function() {
+        client.assert(response.body.accessToken !== client.global.get("access_token_1"), "Access token not rotated");
+        client.assert(response.body.refreshToken !== client.global.get("refresh_token_1"), "Refresh token not rotated");
+    });
+    client.global.set("access_token_2", response.body.accessToken);
+    client.global.set("refresh_token_2", response.body.refreshToken);
+%}
+
+###
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token_1}}"
+}
+
+> {%
+    client.test("Status is 401", function() {
+        client.assert(response.status === 401, "Expected 401 Unauthorized for used refresh token");
+    });
+%}
+
+###
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Новый Пользователь",
+  "email": "newuser5@yunix.software",
+  "password": "SecurePassword123!",
+  "deviceId": "device-client-reg"
+}
+
+> {%
+    client.test("Status is 201", function() {
+        client.assert(response.status === 201, "Response status is not 201");
+    });
+%}
+
+###
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Дубликат",
+  "email": "newuser5@yunix.software",
+  "password": "SecurePassword123!"
+}
+
+> {%
+    client.test("Status is 409", function() {
+        client.assert(response.status === 409, "Expected 409 Conflict for duplicate registration");
+    });
+%}
+
+###
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "dodik1@yunix.software",
+  "password": "wrongpassword"
+}
+
+> {%
+    client.test("Status is 401", function() {
+        client.assert(response.status === 401, "Expected 401 for wrong credentials");
+    });
+%}
+
+###
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "",
+  "password": ""
+}
+
+> {%
+    client.test("Status is 400", function() {
+        client.assert(response.status === 400, "Expected 400 for empty fields");
+    });
+%}
+
+###
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "invalid.jwt.token"
+}
+
+> {%
+    client.test("Status is 401", function() {
+        client.assert(response.status === 401, "Expected 401 for invalid refresh token");
+    });
+%}
+
+###
+GET {{baseUrl}}/api/auth/csrf
+Accept: application/json
+
+> {%
+    client.global.set("csrf_token", response.body.token);
+%}
+
+###
+POST {{baseUrl}}/api/volunteer-campaigns
+Authorization: Bearer {{access_token_1}}
+Content-Type: application/json
+
+{
+  "title": "Зимняя помощь приютам",
+  "startDate": "2026-12-01",
+  "endDate": "2026-12-25",
+  "coordinatorId": 1,
+  "status": "ACTIVE"
+}
+
+###
+POST {{baseUrl}}/api/volunteer-tasks
+Authorization: Bearer {{access_token_1}}
+Content-Type: application/json
+
+{
+  "campaignId": 1,
+  "title": "Утепление будок",
+  "requiredParticipants": 5,
+  "startDate": "2026-12-05T10:00:00",
+  "durationHours": 4
+}
+
+###
+POST {{baseUrl}}/api/volunteer-responses/register?taskId=1&volunteerId=2
+Authorization: Basic ZG9kaWsyQHl1bml4LnNvZnR3YXJlOnBhc3N3b3JkMTIz
+X-XSRF-TOKEN: {{csrf_token}}
+
+###
+DELETE {{baseUrl}}/api/volunteer-responses/2
+Authorization: Basic ZG9kaWsyQHl1bml4LnNvZnR3YXJlOnBhc3N3b3JkMTIz
+X-XSRF-TOKEN: {{csrf_token}}
+
+###
+POST {{baseUrl}}/api/participation-reports/1/confirm?status=CONFIRMED
+Authorization: Bearer {{access_token_1}}
+
+###
+POST {{baseUrl}}/api/users/3/deactivate
+Authorization: Bearer {{access_token_1}}
